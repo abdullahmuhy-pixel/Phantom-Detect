@@ -1,0 +1,819 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Phantom Detect — AI Text Analyzer</title>
+<meta name="description" content="Detect AI-written text instantly. Sentence-level heatmap shows exactly which parts are AI. Rewrite to sound human." />
+<meta name="theme-color" content="#080810" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Phantom Detect" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" type="image/png" sizes="32x32" href="icon-32.png" />
+<link rel="apple-touch-icon" href="icon-180.png" />
+<meta property="og:title" content="Phantom Detect" />
+<meta property="og:description" content="AI watermark detector & humanizer. See exactly which sentences are AI-written." />
+<meta property="og:type" content="website" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=JetBrains+Mono:wght@400;600&family=Lora:ital,wght@0,400;0,600;1,400&display=swap" rel="stylesheet" />
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:      #080810;
+  --surface: #0e0e1a;
+  --sur2:    #12121f;
+  --border:  #1c1c2e;
+  --bor2:    #252538;
+  --text:    #e2e0db;
+  --muted:   #77778a;
+  --dim:     #3a3a50;
+  --accent:  #a78bfa;
+  --acc2:    #818cf8;
+  --green:   #4ade80;
+  --yellow:  #fbbf24;
+  --orange:  #f97316;
+  --red:     #f87171;
+  --mono:    'JetBrains Mono', monospace;
+  --serif:   'Lora', serif;
+  --display: 'DM Serif Display', serif;
+}
+
+html { scroll-behavior: smooth; }
+body { background: var(--bg); color: var(--text); font-family: var(--serif); min-height: 100vh; line-height: 1.6; }
+
+body::before {
+  content: ''; position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0.32;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.04'/%3E%3C/svg%3E");
+}
+
+#app { position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 0 24px 100px; }
+
+/* ── Header ── */
+header {
+  position: sticky; top: 0; z-index: 100;
+  background: rgba(8,8,16,0.94); backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 0; margin: 0 -24px; padding-left: 24px; padding-right: 24px;
+}
+.logo { display: flex; align-items: center; gap: 12px; text-decoration: none; }
+.logo-icon {
+  width: 38px; height: 38px; border-radius: 10px;
+  background: linear-gradient(135deg, #c084fc, #818cf8);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 19px; flex-shrink: 0; box-shadow: 0 0 22px #7c3aed44;
+}
+.logo-name { font-family: var(--display); font-size: 20px; color: #f0eee9; line-height: 1; }
+.logo-sub  { font-family: var(--mono); font-size: 9px; color: var(--dim); letter-spacing: 0.12em; text-transform: uppercase; margin-top: 3px; }
+.powered   { font-family: var(--mono); font-size: 10px; color: var(--dim); border: 1px solid var(--border); border-radius: 5px; padding: 5px 11px; letter-spacing: 0.06em; }
+
+/* ── API Banner ── */
+#api-banner {
+  background: var(--surface); border: 1px solid var(--bor2); border-radius: 12px;
+  padding: 18px 20px; margin-top: 32px;
+  display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap;
+}
+.api-text { font-family: var(--mono); font-size: 12px; color: var(--muted); line-height: 1.6; }
+.api-text a { color: var(--accent); text-decoration: none; }
+.api-text a:hover { text-decoration: underline; }
+.api-row { display: flex; align-items: center; gap: 8px; }
+#api-key-input {
+  background: var(--bg); border: 1px solid var(--bor2); border-radius: 8px;
+  color: var(--text); padding: 9px 14px; font-family: var(--mono); font-size: 12px;
+  outline: none; width: 275px; max-width: 100%; transition: border-color 0.15s;
+}
+#api-key-input:focus { border-color: var(--accent); }
+#api-key-input::placeholder { color: var(--dim); }
+.eye-btn {
+  background: none; border: 1px solid var(--bor2); border-radius: 7px;
+  color: var(--muted); padding: 8px 10px; cursor: pointer; font-size: 13px; transition: color 0.15s;
+}
+.eye-btn:hover { color: var(--text); }
+#api-ready { font-family: var(--mono); font-size: 11px; color: var(--green); display: none; }
+
+/* ── Input ── */
+#input-area { margin-top: 28px; }
+.sec-label {
+  font-family: var(--mono); font-size: 10px; color: var(--dim);
+  letter-spacing: 0.12em; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 9px;
+}
+.wc-chip {
+  font-family: var(--mono); font-size: 10px; padding: 2px 8px;
+  border-radius: 4px; border: 1px solid var(--border); color: var(--dim);
+  transition: color 0.2s, border-color 0.2s;
+}
+.wc-chip.warn  { color: var(--yellow); border-color: #eab30844; }
+.wc-chip.over  { color: var(--red);    border-color: #ef444444; }
+
+#text-input {
+  width: 100%; min-height: 195px; background: var(--surface);
+  border: 1px solid var(--border); border-radius: 12px;
+  color: var(--text); font-size: 15px; line-height: 1.75;
+  padding: 18px 20px; resize: vertical; outline: none;
+  font-family: var(--serif); transition: border-color 0.2s; display: block;
+}
+#text-input:focus { border-color: var(--bor2); }
+#text-input::placeholder { color: var(--dim); }
+
+/* Over-limit banner */
+#limit-banner {
+  display: none; margin-top: 8px;
+  background: #1a0808; border: 1px solid #ef444433; border-radius: 8px;
+  padding: 10px 14px; font-family: var(--mono); font-size: 11px; color: var(--red);
+}
+
+/* ── Controls ── */
+#controls { display: flex; align-items: center; gap: 12px; margin-top: 14px; flex-wrap: wrap; }
+
+.btn-primary {
+  background: linear-gradient(135deg, #7c3aed, #4f46e5); color: #fff; border: none;
+  border-radius: 9px; padding: 12px 30px; font-size: 13px; font-weight: 600;
+  cursor: pointer; font-family: var(--mono); letter-spacing: 0.05em;
+  transition: opacity 0.15s; white-space: nowrap; box-shadow: 0 4px 22px #4f46e540;
+}
+.btn-primary:disabled { background: var(--surface); color: var(--dim); box-shadow: none; cursor: not-allowed; }
+.btn-primary:not(:disabled):hover { opacity: 0.82; }
+
+.btn-blue {
+  background: #0c1620; color: #60a5fa; border: 1px solid #1e3550;
+  border-radius: 9px; padding: 11px 22px; font-size: 12px; font-weight: 600;
+  cursor: pointer; font-family: var(--mono); letter-spacing: 0.05em; transition: all 0.15s; white-space: nowrap;
+}
+.btn-blue:disabled { background: var(--surface); color: var(--dim); border-color: var(--border); cursor: not-allowed; }
+.btn-blue:not(:disabled):hover { background: #0f1e2e; }
+
+.strength-wrap  { display: flex; align-items: center; gap: 9px; }
+.strength-label { font-family: var(--mono); font-size: 10px; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; white-space: nowrap; }
+.str-toggle     { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+.str-btn { background: none; border: none; cursor: pointer; padding: 7px 14px; font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em; text-transform: capitalize; color: var(--dim); transition: all 0.15s; }
+.str-btn.active { background: #1c1c30; color: var(--accent); }
+
+/* ── Progress ── */
+#progress {
+  display: none; margin-top: 14px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 14px 18px;
+}
+.prog-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-bottom: 8px; }
+.prog-bar-track { height: 4px; background: var(--sur2); border-radius: 99px; overflow: hidden; }
+.prog-bar-fill  { height: 100%; background: linear-gradient(90deg, #7c3aed, #818cf8); border-radius: 99px; transition: width 0.4s ease; width: 0%; }
+
+#error-msg { font-family: var(--mono); font-size: 12px; color: var(--red); margin-top: 8px; display: none; }
+
+/* ── Results ── */
+#results { margin-top: 38px; display: none; }
+
+#score-card {
+  border-radius: 13px; padding: 26px 28px; margin-bottom: 18px;
+  display: flex; align-items: center; gap: 26px; flex-wrap: wrap;
+  transition: background 0.4s, border-color 0.4s;
+}
+.score-info { flex: 1; min-width: 180px; }
+.score-verdict { font-family: var(--display); font-size: 28px; line-height: 1.1; margin-bottom: 8px; }
+.score-tags { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.score-tag { background: rgba(255,255,255,0.04); border: 1px solid var(--bor2); border-radius: 5px; padding: 3px 10px; font-family: var(--mono); font-size: 10px; color: var(--muted); letter-spacing: 0.06em; }
+.score-summary { font-size: 13px; color: var(--muted); line-height: 1.65; }
+
+#delta-box {
+  background: var(--sur2); border: 1px solid var(--bor2); border-radius: 10px;
+  padding: 16px 22px; text-align: center; min-width: 155px; display: none;
+}
+.delta-label { font-family: var(--mono); font-size: 9px; color: var(--dim); letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 8px; }
+.delta-nums  { display: flex; align-items: center; justify-content: center; gap: 8px; }
+.delta-score { font-family: var(--mono); font-size: 26px; font-weight: 600; }
+.delta-arrow { font-size: 18px; color: var(--dim); }
+.delta-change{ font-family: var(--mono); font-size: 11px; margin-top: 5px; }
+
+#signals-section { margin-bottom: 20px; }
+#signals-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px,1fr)); gap: 9px; margin-top: 10px; }
+.sig-card { background: var(--surface); border: 1px solid var(--border); border-left: 3px solid #333; border-radius: 8px; padding: 11px 14px; }
+.sig-head  { display: flex; align-items: center; gap: 7px; margin-bottom: 4px; }
+.sig-dot   { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; }
+.sig-name  { font-family: var(--mono); font-size: 11px; font-weight: 600; color: #bbb; }
+.sig-detail{ font-size: 11px; color: var(--dim); line-height: 1.5; }
+
+#action-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+
+.tab-bar { display: flex; border-bottom: 1px solid var(--border); }
+.tab-btn {
+  background: none; border: none; cursor: pointer; border-bottom: 2px solid transparent;
+  color: var(--dim); padding: 9px 18px; font-family: var(--mono); font-size: 11px;
+  letter-spacing: 0.06em; text-transform: uppercase; transition: color 0.15s; white-space: nowrap;
+}
+.tab-btn.active { color: var(--text); border-bottom-color: var(--acc2); }
+.tab-copy { margin-left: auto; background: none; border: none; color: var(--dim); padding: 9px 14px; font-family: var(--mono); font-size: 10px; cursor: pointer; transition: color 0.15s; display: none; }
+.tab-copy.show { display: block; }
+.tab-copy:hover { color: var(--green); }
+
+.tab-panel { background: var(--surface); border: 1px solid var(--border); border-top: none; border-radius: 0 0 12px 12px; padding: 24px; min-height: 140px; display: none; }
+.tab-panel.active { display: block; }
+
+.heatmap-text { font-size: 15px; line-height: 1.9; color: #ccc; }
+.hs { border-radius: 3px; cursor: default; padding: 1px 3px; transition: filter 0.12s; border-bottom: 2px solid transparent; }
+.hs:hover { filter: brightness(1.35); }
+.heat-legend { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; margin-top: 16px; }
+.heat-leg-lbl { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.heat-sw { display: flex; align-items: center; gap: 5px; font-family: var(--mono); font-size: 10px; color: var(--muted); }
+.heat-sw-box { width: 11px; height: 11px; border-radius: 2px; }
+
+.rw-text { font-size: 15px; line-height: 1.85; color: #ccc; white-space: pre-wrap; }
+.rescan-note { font-family: var(--mono); font-size: 11px; color: var(--dim); margin-bottom: 14px; display: none; }
+
+.rescan-card { border-radius: 11px; padding: 18px 22px; margin-bottom: 18px; display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+.rescan-verdict { font-family: var(--display); font-size: 21px; margin-bottom: 4px; }
+.rescan-summary { font-size: 12px; color: var(--muted); line-height: 1.6; }
+
+.ring-text { font-family: var(--mono); font-size: 20px; font-weight: 600; }
+
+@keyframes fadeUp { from { opacity:0; transform:translateY(12px); } to { opacity:1; transform:translateY(0); } }
+.fade-up { animation: fadeUp 0.3s ease forwards; }
+
+@media (max-width: 580px) {
+  #score-card { flex-direction: column; align-items: flex-start; }
+  .strength-wrap { flex-wrap: wrap; }
+  #api-banner { flex-direction: column; align-items: flex-start; }
+  #api-key-input { width: 100%; }
+}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header>
+    <a class="logo" href="#">
+      <div class="logo-icon">◈</div>
+      <div>
+        <div class="logo-name">Phantom Detect</div>
+        <div class="logo-sub">AI Watermark Detector</div>
+      </div>
+    </a>
+    <div class="powered">Powered by Claude</div>
+  </header>
+
+  <div id="api-banner">
+    <div class="api-text">
+      Enter your <a href="https://console.anthropic.com" target="_blank">Anthropic API key</a> to get started.<br>
+      Session only — never stored or sent anywhere except the Anthropic API.
+    </div>
+    <div class="api-row">
+      <input type="password" id="api-key-input" placeholder="sk-ant-…" oninput="onKeyInput(this.value)" autocomplete="off" />
+      <button class="eye-btn" onclick="toggleEye()" title="Show/hide">👁</button>
+      <span id="api-ready">✓ Ready</span>
+    </div>
+  </div>
+
+  <div id="input-area">
+    <div class="sec-label">
+      <span>Paste your text</span>
+      <span class="wc-chip" id="wc-chip">0 words</span>
+    </div>
+    <textarea id="text-input" placeholder="Paste or type any text here — up to 3,000 words…" oninput="onTextInput()"></textarea>
+    <div id="limit-banner">⚠ Over 3,000 words. Please trim your text — the analyzer works best up to 3,000 words.</div>
+    <div id="error-msg"></div>
+  </div>
+
+  <div id="controls">
+    <button class="btn-primary" id="analyze-btn" onclick="doAnalyze()" disabled>Analyze Text</button>
+    <div class="strength-wrap">
+      <span class="strength-label">Rewrite</span>
+      <div class="str-toggle">
+        <button class="str-btn"        id="str-light"      onclick="setStrength('light')">Light</button>
+        <button class="str-btn active" id="str-moderate"   onclick="setStrength('moderate')">Moderate</button>
+        <button class="str-btn"        id="str-aggressive" onclick="setStrength('aggressive')">Aggressive</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Progress bar -->
+  <div id="progress">
+    <div class="prog-label" id="prog-label">Analyzing…</div>
+    <div class="prog-bar-track"><div class="prog-bar-fill" id="prog-fill"></div></div>
+  </div>
+
+  <div id="results">
+
+    <div id="score-card">
+      <svg width="92" height="92" viewBox="0 0 92 92" style="flex-shrink:0">
+        <circle cx="46" cy="46" r="38" fill="none" stroke="#1a1a28" stroke-width="7"/>
+        <circle id="ring-arc" cx="46" cy="46" r="38" fill="none" stroke="#a78bfa" stroke-width="7"
+          stroke-dasharray="238.8" stroke-dashoffset="238.8" stroke-linecap="round"
+          transform="rotate(-90 46 46)"
+          style="transition:stroke-dashoffset 0.9s cubic-bezier(.34,1.56,.64,1),stroke 0.4s"/>
+        <text id="ring-num" x="46" y="52" text-anchor="middle" fill="#a78bfa" class="ring-text">0</text>
+      </svg>
+      <div class="score-info">
+        <div class="score-verdict" id="score-verdict">—</div>
+        <div class="score-tags">
+          <span class="score-tag" id="tag-conf">—</span>
+          <span class="score-tag" id="tag-score">—</span>
+        </div>
+        <div class="score-summary" id="score-summary"></div>
+      </div>
+      <div id="delta-box">
+        <div class="delta-label">Score after humanize</div>
+        <div class="delta-nums">
+          <span class="delta-score" id="d-before">—</span>
+          <span class="delta-arrow">→</span>
+          <span class="delta-score" id="d-after">—</span>
+        </div>
+        <div class="delta-change" id="d-change"></div>
+      </div>
+    </div>
+
+    <div id="signals-section">
+      <div class="sec-label">Detection Signals</div>
+      <div id="signals-grid"></div>
+    </div>
+
+    <div id="action-bar">
+      <button class="btn-blue" id="humanize-btn" onclick="doHumanize()">✦ Humanize Text</button>
+    </div>
+
+    <div class="tab-bar">
+      <button class="tab-btn active" id="tab-heatmap"   onclick="switchTab('heatmap')">◐ Heatmap</button>
+      <button class="tab-btn"        id="tab-rewritten" onclick="switchTab('rewritten')" style="display:none">✦ Humanized</button>
+      <button class="tab-btn"        id="tab-rescan"    onclick="switchTab('rescan')"    style="display:none"></button>
+      <button class="tab-copy"       id="copy-btn"      onclick="doCopy()">Copy</button>
+    </div>
+
+    <div class="tab-panel active" id="panel-heatmap">
+      <div class="heatmap-text" id="heatmap-text"></div>
+      <div class="heat-legend" id="heat-legend" style="display:none">
+        <span class="heat-leg-lbl">Sentence heatmap —</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#4ade8030;border:1px solid #4ade8066"></span>Human</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#fbbf2430;border:1px solid #fbbf2466"></span>Mild</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#f9731638;border:1px solid #f9731666"></span>Likely AI</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#f8717150;border:1px solid #f8717188"></span>AI</span>
+      </div>
+    </div>
+
+    <div class="tab-panel" id="panel-rewritten">
+      <div class="rescan-note" id="rescan-note">⟳ Re-scanning humanized text…</div>
+      <div class="rw-text" id="rw-text"></div>
+    </div>
+
+    <div class="tab-panel" id="panel-rescan">
+      <div class="rescan-card" id="rescan-card"></div>
+      <div class="heatmap-text" id="rescan-heatmap"></div>
+      <div class="heat-legend" style="margin-top:16px">
+        <span class="heat-leg-lbl">Sentence heatmap —</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#4ade8030;border:1px solid #4ade8066"></span>Human</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#fbbf2430;border:1px solid #fbbf2466"></span>Mild</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#f9731638;border:1px solid #f9731666"></span>Likely AI</span>
+        <span class="heat-sw"><span class="heat-sw-box" style="background:#f8717150;border:1px solid #f8717188"></span>AI</span>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Config ─────────────────────────────────────────────────────────────────
+const MAX_WORDS          = 3000;
+const WARN_WORDS         = 2000;
+const CHUNK_WORDS        = 500;   // words per sentence-scoring chunk
+const HUM_CHUNK_WORDS    = 600;   // words per humanize chunk
+
+// ── State ──────────────────────────────────────────────────────────────────
+let apiKey     = '';
+let strength   = 'moderate';
+let origResult = null;
+let rwText     = '';
+let rwResult   = null;
+
+// ── API key ────────────────────────────────────────────────────────────────
+function onKeyInput(v) {
+  apiKey = v.trim();
+  document.getElementById('api-ready').style.display = apiKey ? 'inline' : 'none';
+  refreshBtn();
+}
+function toggleEye() {
+  const i = document.getElementById('api-key-input');
+  i.type = i.type === 'password' ? 'text' : 'password';
+}
+
+// ── Text input ─────────────────────────────────────────────────────────────
+function onTextInput() {
+  const t  = document.getElementById('text-input').value;
+  const wc = t.trim() ? t.trim().split(/\s+/).length : 0;
+  const chip = document.getElementById('wc-chip');
+  chip.textContent = wc.toLocaleString() + ' words';
+  chip.className   = 'wc-chip' + (wc > MAX_WORDS ? ' over' : wc > WARN_WORDS ? ' warn' : '');
+  document.getElementById('limit-banner').style.display = wc > MAX_WORDS ? 'block' : 'none';
+  document.getElementById('error-msg').style.display    = 'none';
+  refreshBtn();
+}
+function refreshBtn() {
+  const t  = document.getElementById('text-input').value.trim();
+  const wc = t.split(/\s+/).filter(Boolean).length;
+  document.getElementById('analyze-btn').disabled = !apiKey || wc < 20 || wc > MAX_WORDS;
+}
+
+// ── Strength ───────────────────────────────────────────────────────────────
+function setStrength(s) {
+  strength = s;
+  ['light','moderate','aggressive'].forEach(k =>
+    document.getElementById('str-'+k).classList.toggle('active', k === s)
+  );
+}
+
+// ── Colors ─────────────────────────────────────────────────────────────────
+function scoreColors(n) {
+  if (n < 30) return { bg:'#091a0f', border:'#22c55e1e', text:'#4ade80', bar:'#22c55e' };
+  if (n < 55) return { bg:'#1a1400', border:'#eab3081e', text:'#fbbf24', bar:'#eab308' };
+  if (n < 75) return { bg:'#180e00', border:'#f973161e', text:'#f97316', bar:'#f97316' };
+  return            { bg:'#1c0808', border:'#ef44441e', text:'#f87171', bar:'#ef4444' };
+}
+function sentenceColors(n) {
+  if (n < 25) return ['transparent','transparent'];
+  if (n < 45) return ['#4ade8020','#4ade8055'];
+  if (n < 60) return ['#fbbf2430','#fbbf2466'];
+  if (n < 78) return ['#f9731638','#f9731666'];
+  return            ['#f8717150','#f8717188'];
+}
+function sigColor(s) { return s === 'high' ? '#f87171' : s === 'medium' ? '#fbbf24' : '#4ade80'; }
+
+// ── Ring ───────────────────────────────────────────────────────────────────
+function updateRing(score, color) {
+  const circ = 2 * Math.PI * 38;
+  document.getElementById('ring-arc').style.strokeDashoffset = circ * (1 - score/100);
+  document.getElementById('ring-arc').setAttribute('stroke', color);
+  document.getElementById('ring-num').setAttribute('fill', color);
+  document.getElementById('ring-num').textContent = score;
+}
+
+// ── Heatmap ────────────────────────────────────────────────────────────────
+function renderHeatmap(sentences, id) {
+  const el = document.getElementById(id);
+  el.innerHTML = '';
+  sentences.forEach(s => {
+    const [bg, bd] = sentenceColors(s.aiScore);
+    const sp = document.createElement('span');
+    sp.className = 'hs';
+    sp.title = `AI score: ${s.aiScore}/100`;
+    sp.style.cssText = `background:${bg};border-bottom-color:${bd}`;
+    sp.textContent = s.text + ' ';
+    el.appendChild(sp);
+  });
+}
+
+// ── Claude API ─────────────────────────────────────────────────────────────
+async function claude(prompt, maxTokens = 1000) {
+  const res = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      messages: [{ role: 'user', content: prompt }],
+    }),
+  });
+  if (!res.ok) {
+    const e = await res.json().catch(() => ({}));
+    throw new Error(e?.error?.message || `HTTP ${res.status}`);
+  }
+  const data = await res.json();
+  return data.content?.find(b => b.type === 'text')?.text || '';
+}
+
+function parseJSON(raw) {
+  return JSON.parse(raw.replace(/```json|```/g, '').trim());
+}
+
+// ── Chunking helpers ───────────────────────────────────────────────────────
+
+// Split text into chunks of ~maxWords, breaking on paragraph/sentence boundaries
+function chunkText(text, maxWords) {
+  const paras = text.split(/\n+/).filter(p => p.trim());
+  const chunks = [];
+  let current = [], count = 0;
+
+  for (const p of paras) {
+    const wc = p.trim().split(/\s+/).length;
+    if (count + wc > maxWords && current.length) {
+      chunks.push(current.join('\n\n'));
+      current = [p]; count = wc;
+    } else {
+      current.push(p); count += wc;
+    }
+  }
+  if (current.length) chunks.push(current.join('\n\n'));
+
+  // If single paragraph with no breaks, fall back to word-split
+  if (chunks.length === 1 && chunks[0].split(/\s+/).length > maxWords) {
+    const words = text.trim().split(/\s+/);
+    const result = [];
+    for (let i = 0; i < words.length; i += maxWords) {
+      result.push(words.slice(i, i + maxWords).join(' '));
+    }
+    return result;
+  }
+  return chunks;
+}
+
+// ── Progress helpers ───────────────────────────────────────────────────────
+function showProgress(label, pct) {
+  document.getElementById('progress').style.display = 'block';
+  document.getElementById('prog-label').textContent  = label;
+  document.getElementById('prog-fill').style.width   = pct + '%';
+}
+function hideProgress() {
+  document.getElementById('progress').style.display  = 'none';
+  document.getElementById('prog-fill').style.width   = '0%';
+}
+
+// ── Prompts ────────────────────────────────────────────────────────────────
+
+// Pass 1: overall score, no sentences (works for any length)
+const META_PROMPT = `You are an expert AI text detector. Analyze the text and return ONLY a JSON object — no markdown, no backticks.
+
+{
+  "score": <integer 0-100>,
+  "verdict": "<Likely Human | Possibly AI | Likely AI | Almost Certainly AI>",
+  "confidence": "<Low | Medium | High>",
+  "signals": [
+    { "label": "<name>", "detail": "<short explanation>", "severity": "<low|medium|high>" }
+  ],
+  "summary": "<2-3 sentence plain English explanation>"
+}
+
+Signals: uniform sentence length, hollow phrases (it is worth noting / delve / furthermore / in conclusion / it is important to), unnaturally perfect grammar, repetitive structure, no contractions, no colloquialisms, over-hedged language, excessive em-dashes.
+
+Text:\n`;
+
+// Pass 2: sentence scoring only for a chunk
+const SENT_PROMPT = `Score each sentence in this text for how AI-like it reads. Return ONLY a JSON array — no markdown, no backticks, no other keys.
+
+[
+  { "text": "<exact sentence>", "aiScore": <0-100> },
+  ...
+]
+
+Include every sentence. 0 = clearly human, 100 = clearly AI.
+
+Text:\n`;
+
+// Humanize prompt per chunk
+function humPrompt(s) {
+  const rules = {
+    light: `Light touch:
+- Remove AI giveaway phrases (it is worth noting, delve into, in conclusion, furthermore, it is important to)
+- Add 1-2 contractions where natural
+- Vary one or two overly uniform sentences
+- Minimal changes only`,
+    moderate: `Moderate rewrite:
+- Remove all AI giveaway phrases
+- Add contractions throughout
+- Mix sentence lengths — short punchy + longer flowing
+- Light informal touches
+- Preserve all meaning`,
+    aggressive: `Aggressive rewrite:
+- Restructure sentence rhythm completely
+- Heavy contractions, casual language
+- Occasional colloquialisms
+- Start some sentences with And / But / So
+- Break up over-polished paragraphs
+- Preserve every fact and idea`,
+  };
+  return `Rewrite the following text to sound naturally human-written.\n\n${rules[s]}\n\nReturn ONLY the rewritten text. No explanation, no labels.\n\nOriginal:\n`;
+}
+
+// ── ANALYZE ────────────────────────────────────────────────────────────────
+async function doAnalyze() {
+  const text = document.getElementById('text-input').value;
+  const wc   = text.trim().split(/\s+/).filter(Boolean).length;
+  if (wc < 20)       { showError('Please enter at least 20 words.');   return; }
+  if (wc > MAX_WORDS){ showError('Please trim to under 3,000 words.'); return; }
+
+  clearError();
+  setBusy('analyze', true);
+  origResult = null; rwText = ''; rwResult = null;
+
+  const results = document.getElementById('results');
+  results.style.display = 'none';
+  document.getElementById('tab-rewritten').style.display = 'none';
+  document.getElementById('tab-rescan').style.display    = 'none';
+  document.getElementById('delta-box').style.display     = 'none';
+  document.getElementById('copy-btn').classList.remove('show');
+
+  try {
+    // ── Pass 1: meta (score, signals, summary) ──────────────────────────
+    showProgress('Scanning text…', 15);
+    const metaRaw = await claude(META_PROMPT + text, 900);
+    const meta    = parseJSON(metaRaw);
+
+    // ── Pass 2: sentence scoring in parallel chunks ─────────────────────
+    const chunks  = chunkText(text, CHUNK_WORDS);
+    const total   = 1 + chunks.length;
+    let done      = 1;
+
+    showProgress(`Scoring sentences (0/${chunks.length})…`, 20);
+
+    const sentChunks = await Promise.all(
+      chunks.map(async (chunk, i) => {
+        const raw  = await claude(SENT_PROMPT + chunk, 2500);
+        const arr  = parseJSON(raw);
+        done++;
+        showProgress(`Scoring sentences (${done-1}/${chunks.length})…`, Math.round(20 + (done/total)*75));
+        return Array.isArray(arr) ? arr : (arr.sentences || []);
+      })
+    );
+
+    const allSentences = sentChunks.flat();
+
+    origResult = { ...meta, sentences: allSentences };
+
+    // ── Render ──────────────────────────────────────────────────────────
+    renderScore(origResult);
+    renderSignals(origResult.signals || []);
+    if (allSentences.length) {
+      renderHeatmap(allSentences, 'heatmap-text');
+      document.getElementById('heat-legend').style.display = 'flex';
+    }
+    switchTab('heatmap');
+    results.style.display = 'block';
+    results.classList.remove('fade-up');
+    void results.offsetWidth;
+    results.classList.add('fade-up');
+
+  } catch(e) {
+    showError('Analysis failed: ' + e.message);
+  } finally {
+    hideProgress();
+    setBusy('analyze', false);
+  }
+}
+
+// ── HUMANIZE ───────────────────────────────────────────────────────────────
+async function doHumanize() {
+  const text   = document.getElementById('text-input').value;
+  const chunks = chunkText(text, HUM_CHUNK_WORDS);
+
+  setBusy('humanize', true);
+  rwText = ''; rwResult = null;
+
+  try {
+    // ── Rewrite chunks in parallel ──────────────────────────────────────
+    showProgress(`Humanizing (0/${chunks.length})…`, 10);
+    let done = 0;
+
+    const rwChunks = await Promise.all(
+      chunks.map(async chunk => {
+        const raw = await claude(humPrompt(strength) + chunk, 1800);
+        done++;
+        showProgress(`Humanizing (${done}/${chunks.length})…`, Math.round(10 + (done/chunks.length)*55));
+        return raw.trim();
+      })
+    );
+
+    rwText = rwChunks.join('\n\n');
+    document.getElementById('rw-text').textContent = rwText;
+    document.getElementById('tab-rewritten').style.display = 'block';
+    document.getElementById('copy-btn').classList.add('show');
+    switchTab('rewritten');
+
+    // ── Auto re-scan (same chunked flow) ────────────────────────────────
+    document.getElementById('rescan-note').style.display = 'block';
+    showProgress('Re-scanning humanized text…', 68);
+
+    try {
+      const metaRaw2    = await claude(META_PROMPT + rwText, 900);
+      const meta2       = parseJSON(metaRaw2);
+      const chunks2     = chunkText(rwText, CHUNK_WORDS);
+      let done2         = 0;
+
+      const sentChunks2 = await Promise.all(
+        chunks2.map(async chunk => {
+          const raw = await claude(SENT_PROMPT + chunk, 2500);
+          done2++;
+          showProgress(`Re-scanning (${done2}/${chunks2.length})…`, Math.round(68 + (done2/chunks2.length)*28));
+          return parseJSON(raw);
+        })
+      );
+
+      rwResult = { ...meta2, sentences: sentChunks2.flat() };
+      document.getElementById('rescan-note').style.display = 'none';
+      renderRescan(rwResult);
+      renderDelta(origResult.score, rwResult.score);
+    } catch(e) {
+      document.getElementById('rescan-note').style.display = 'none';
+    }
+
+  } catch(e) {
+    showError('Rewrite failed: ' + e.message);
+  } finally {
+    hideProgress();
+    setBusy('humanize', false);
+  }
+}
+
+// ── Render helpers ─────────────────────────────────────────────────────────
+function renderScore(r) {
+  const c    = scoreColors(r.score);
+  const card = document.getElementById('score-card');
+  card.style.background = c.bg;
+  card.style.border     = `1px solid ${c.border}`;
+  updateRing(r.score, c.bar);
+  const v = document.getElementById('score-verdict');
+  v.textContent = r.verdict; v.style.color = c.text;
+  document.getElementById('tag-conf').textContent  = r.confidence + ' Confidence';
+  document.getElementById('tag-score').textContent = r.score + '/100';
+  document.getElementById('score-summary').textContent = r.summary;
+}
+
+function renderSignals(signals) {
+  const g = document.getElementById('signals-grid');
+  g.innerHTML = '';
+  signals.forEach(s => {
+    const sc = sigColor(s.severity);
+    const d  = document.createElement('div');
+    d.className = 'sig-card'; d.style.borderLeftColor = sc;
+    d.innerHTML = `<div class="sig-head"><span class="sig-dot" style="background:${sc}"></span><span class="sig-name">${s.label}</span></div><div class="sig-detail">${s.detail}</div>`;
+    g.appendChild(d);
+  });
+}
+
+function renderRescan(r) {
+  const c  = scoreColors(r.score);
+  const cr = 2 * Math.PI * 31;
+  document.getElementById('rescan-card').innerHTML = `
+    <svg width="72" height="72" viewBox="0 0 72 72" style="flex-shrink:0">
+      <circle cx="36" cy="36" r="31" fill="none" stroke="#1a1a28" stroke-width="6"/>
+      <circle cx="36" cy="36" r="31" fill="none" stroke="${c.bar}" stroke-width="6"
+        stroke-dasharray="${cr}" stroke-dashoffset="${cr*(1-r.score/100)}"
+        stroke-linecap="round" transform="rotate(-90 36 36)"/>
+      <text x="36" y="41" text-anchor="middle" fill="${c.text}"
+        style="font-family:var(--mono);font-size:17px;font-weight:600">${r.score}</text>
+    </svg>
+    <div>
+      <div class="rescan-verdict" style="color:${c.text}">${r.verdict}</div>
+      <div class="rescan-summary">${r.summary}</div>
+    </div>`;
+  if (r.sentences?.length) renderHeatmap(r.sentences, 'rescan-heatmap');
+  const tab = document.getElementById('tab-rescan');
+  tab.style.display = 'block'; tab.textContent = `Re-scan (${r.score}/100)`;
+}
+
+function renderDelta(before, after) {
+  const cb = scoreColors(before), ca = scoreColors(after), drop = before - after;
+  document.getElementById('d-before').textContent = before;
+  document.getElementById('d-before').style.color = cb.text;
+  document.getElementById('d-after').textContent  = after;
+  document.getElementById('d-after').style.color  = ca.text;
+  const ch = document.getElementById('d-change');
+  ch.textContent = drop > 0 ? `↓ ${drop} pts` : drop === 0 ? 'no change' : `↑ ${Math.abs(drop)} pts`;
+  ch.style.color = drop > 0 ? '#4ade80' : drop === 0 ? '#555' : '#f87171';
+  document.getElementById('delta-box').style.display = 'block';
+}
+
+// ── Tabs / copy ────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  ['heatmap','rewritten','rescan'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t === tab);
+    document.getElementById('panel-'+t).classList.toggle('active', t === tab);
+  });
+  document.getElementById('copy-btn').classList.toggle('show', tab === 'rewritten' && !!rwText);
+}
+
+function doCopy() {
+  navigator.clipboard.writeText(rwText);
+  const b = document.getElementById('copy-btn');
+  b.textContent = '✓ Copied'; b.style.color = '#4ade80';
+  setTimeout(() => { b.textContent = 'Copy'; b.style.color = ''; }, 2000);
+}
+
+// ── Busy states ────────────────────────────────────────────────────────────
+function setBusy(which, on) {
+  if (which === 'analyze') {
+    const b = document.getElementById('analyze-btn');
+    b.disabled = on; b.textContent = on ? '⟳ Analyzing…' : 'Analyze Text';
+    document.getElementById('humanize-btn').disabled = on;
+  } else {
+    const b = document.getElementById('humanize-btn');
+    b.disabled = on; b.textContent = on ? '⟳ Humanizing…' : '✦ Humanize Text';
+    document.getElementById('analyze-btn').disabled = on;
+  }
+}
+
+function showError(m) { const e = document.getElementById('error-msg'); e.textContent = m; e.style.display = 'block'; }
+function clearError()  { document.getElementById('error-msg').style.display = 'none'; }
+
+// ── Service Worker ─────────────────────────────────────────────────────────
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () =>
+    navigator.serviceWorker.register('/sw.js')
+      .then(r => console.log('[SW]', r.scope))
+      .catch(e => console.warn('[SW]', e))
+  );
+}
+</script>
+</body>
+</html>
